@@ -136,3 +136,12 @@ Function CellStringToCellValue(inputCell As String) As String
 
 End Function
 
+Function CNumAlp(va As Variant) As Variant '変換する関数
+  Dim al As String
+  If IsNumeric(va) = True Then '数値だったら
+    al = Cells(1, va).Address(RowAbsolute:=False, ColumnAbsolute:=False) '$無しでAddress取得
+    CNumAlp = Left(al, Len(al) - 1)
+  Else 'アルファベットだったら
+    CNumAlp = Range(va & "1").Column '列番号を取得
+  End If
+End Function
