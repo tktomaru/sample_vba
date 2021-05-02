@@ -145,3 +145,35 @@ Function CNumAlp(va As Variant) As Variant '変換する関数
     CNumAlp = Range(va & "1").Column '列番号を取得
   End If
 End Function
+
+' 配列の要素数を求める。
+'
+' ary：対象となる配列。
+' return：配列の要素数。引数として初期化されていない配列を指定した時は-1、配列以外を指定した時は-100を返す。
+Function CalcArrayLength(ary As Variant) As Integer
+    If (IsArray(ary)) Then
+        If (IsInitialized(ary)) Then
+            CalcArrayLength = UBound(ary) - LBound(ary) + 1
+        Else
+            CalcArrayLength = -1
+        End If
+    Else
+        CalcArrayLength = -100
+    End If
+
+End Function
+
+' 配列が初期化されているかをチェックする。
+'
+' ary：対象となる配列。
+' return：配列が初期化済みならTrue、そうでなければFalseを返す。
+Function IsInitialized(ary As Variant) As Boolean
+    On Error GoTo NOT_INITIALIZED_ERROR
+    Dim length As Long: length = UBound(ary)    ' 動的配列が初期化されていなければ、ここでエラーが発生する。
+    IsInitialized = True
+    Exit Function
+
+' 配列が初期化されていない場合はここに飛ばされる。
+NOT_INITIALIZED_ERROR:
+    IsInitialized = False
+End Function

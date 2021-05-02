@@ -1,6 +1,7 @@
 Attribute VB_Name = "ModuleGantDrow"
 
-Sub testDrow()
+' ガントチャートを描く
+Sub drawGant()
     Dim WS As Worksheet
     Set WS = Worksheets("工程表")
     Dim WSConfig As Worksheet
@@ -52,7 +53,7 @@ Sub testDrow()
        percent1 = Cells(jj, "Q")
        percent2 = Cells(jj + 1, "Q")
        
-       ' 開始日を取得
+       ' 開始日を取得(現在日)
        Set keikaku1StartRng = Cells(jj, "D")
        If (IsDate(keikaku1StartRng)) Then
           keikaku1StartDate = keikaku1StartRng
@@ -60,7 +61,7 @@ Sub testDrow()
           GoTo LLOOPEND
        End If
        
-       ' 終了日を取得
+       ' 終了日を取得(現在日)
        Set keikaku1EndRng = Cells(jj, "E")
        If (IsDate(keikaku1EndRng)) Then
           keikaku1EndDate = keikaku1EndRng
@@ -68,21 +69,45 @@ Sub testDrow()
           GoTo LLOOPEND
        End If
        
-       ' 開始日を取得
+       ' 開始日を取得(明日)
        Set keikaku2StartRng = Cells(jj + 1, "D")
        If (IsDate(keikaku2StartRng)) Then
           keikaku2StartDate = keikaku2StartRng
        Else
-          GoTo LLOOPEND
+           keikaku2StartDate = nowRng
        End If
        
-       ' 終了日を取得
+       ' 終了日を取得(明日)
        Set keikaku2EndRng = Cells(jj + 1, "E")
        If (IsDate(keikaku2EndRng)) Then
           keikaku2EndDate = keikaku2EndRng
        Else
-          GoTo LLOOPEND
+           keikaku2EndDate = nowRng
        End If
+       
+       ' =======================
+       
+       ' 設定シートのカラム番号を取得
+       For col = CNumAlp("I") To WSConfig.Cells(2, Columns.Count).End(xlToLeft).Column
+          If WS.Cells(jj, "P") = WSConfig.Cells(2, col) Then
+             GoTo LEnterName
+          End If
+       Next col
+LEnterName:
+       Dim colorV As Long
+       
+       ' 計画
+       colorV = WSConfig.Cells(3, col).Interior.color
+       Call drawPercent(msearchDate(keikaku1StartDate, jj), _
+                        msearchDate(keikaku1EndDate, jj), _
+                        100, colorV)
+       ' 進捗
+       colorV = WSConfig.Cells(4, col).Interior.color
+       Call drawPercent(msearchDate(keikaku1StartDate, jj), _
+                        msearchDate(keikaku1EndDate, jj), _
+                        percent1, colorV)
+       
+       ' =======================
        
        ' 進捗率をもとに描画するか判定する
        If (percent1 = 0) Then
@@ -98,11 +123,13 @@ Sub testDrow()
        If (percent1 = 100) Then
            keikaku1StartDate = nowRng
            keikaku1EndDate = nowRng
+           percent1 = 0
        End If
        
        If (percent2 = 100) Then
            keikaku2StartDate = nowRng
            keikaku2EndDate = nowRng
+           percent2 = 0
        End If
        
        'If (percent2 = 100) Then
@@ -160,22 +187,35 @@ Sub testDrow()
                     msearchDate(keikaku2EndDate, jj + 1), _
                     percent2)
        End If
-       
+
 LLOOPEND:
     Next jj
-
-
 LEXIT:
 
 End Sub
 
- Sub del_shape()
+' 進捗棒を描く
+Function drawPercent(startRng As Range, endRng As Range, percent As Integer, colorV As Long)
+
+    Dim Bar As Shape
+    Set Bar = ActiveSheet.Shapes.AddShape _
+                                (msoShapeRectangle, _
+                                 startRng.Left, _
+                                 startRng.Top + 3, _
+                                 (endRng.Left + endRng.Width - startRng.Left) / 100 * percent, _
+                                 endRng.Height - 6)
+    Bar.Fill.ForeColor.RGB = colorV
+    
+End Function
+
+' フォーム以外のshapeオブジェクトを削除する
+Sub del_shape()
     For Each myshape In ActiveSheet.Shapes
         If myshape.Type <> 8 Then 'フォーム(ボタンなど)以外
             myshape.Delete
         End If
     Next
- End Sub
+End Sub
  
 Function msearchDate(inputDate As Date, row As Integer) As Range
     Dim WS As Worksheet
@@ -217,7 +257,7 @@ Function addline(rngStart1 As Range, rngEnd1 As Range, percent1 As Integer, _
     EX = rngStart2.Left + (rngEnd2.Left - rngStart2.Left + rngEnd2.Width) / 100 * percent2
     EY = rngEnd2.Top + rngEnd2.Height / 2
     
-    '赤色・太さ1.5ポイントの矢印線
+    'RGB色・太さ1.5ポイントの線
     With ActiveSheet.Shapes.addline(BX, BY, EX, EY).Line
         .ForeColor.RGB = RGB(255, 0, 0)
         .Weight = 2

@@ -1,6 +1,6 @@
 Attribute VB_Name = "ModuleGantCalcWorkday"
 
-
+' 開始日と作業日数と優先順位から計画を立てる
 Sub updateKeikakuDate()
     Dim startDate As Date
     Dim taskDbl As Double
@@ -76,22 +76,35 @@ LEnterName:
     
           ' 名前から現在の作業日数を取得
           Dim task As Double
-          task = nameC.item(tmp) + WS.Cells(jj, "K")
-          Cells(jj, "L") = task
            
-           Cells(jj, "D") = startDate + nameCSum(tmp)
-               
+           
           ' 開始日からの日数を算出
           Dim sumtask As Double
+           
+           task = nameC.item(tmp)
+          ' 開始日からの日数を算出（開始日）
+          sumtask = calcWorkday(startDate, task, _
+                     holidayDate, _
+                     youbiInt, _
+                     personalDate)
+           Cells(jj, "D") = startDate + sumtask
+                     
+          task = nameC.item(tmp) + WS.Cells(jj, "K")
+          Cells(jj, "L") = task
+           nameC(tmp) = task
+               
+          ' 開始日からの日数を算出（終了日）
           sumtask = calcWorkday(startDate, task, _
                      holidayDate, _
                      youbiInt, _
                      personalDate)
                      
-           'task = sumtask + Cells(jj, "K")
-           nameC(tmp) = task
-           nameCSum(tmp) = sumtask - WS.Cells(jj, "K")
-           Cells(jj, "E") = startDate + sumtask - WS.Cells(jj, "K")
+           nameCSum(tmp) = sumtask
+           ' 開始日以外、かつ、 整数の場合にはちょうどその日にタスクが収まるため、加算をなくす
+           If (0 <> sumtask And (sumtask = Int(sumtask))) Then
+              sumtask = sumtask - 1
+           End If
+           Cells(jj, "E") = startDate + sumtask
           End If
        Next jj
 LFEND:
@@ -136,6 +149,7 @@ Function conbertRangeToDateWithout(inputRange As Range, name As String) As Date(
    conbertRangeToDateWithout = ret
 End Function
 
+' RangeからDate配列に変換する
 Function conbertRangeToDate(inputRange As Range) As Date()
    Dim rng As Range
    Dim num As Integer
@@ -151,6 +165,7 @@ Function conbertRangeToDate(inputRange As Range) As Date()
    conbertRangeToDate = ret
 End Function
 
+' 例："月,火"という文字列を与えると、ret=[2,3]というInteger配列で返す
 Function convertYoubi(youbi As String) As Integer()
    Dim ret() As Integer
    Dim tmp As Variant
@@ -253,7 +268,7 @@ Sub calcPriority()
     Next ii
 End Sub
 
-
+' "R"列より右の休日をピンク色にする
 Sub YoubiColor()
     Dim holidayRange As Range
     Dim holidayDate() As Date
@@ -305,11 +320,11 @@ LEnterName:
          keikakuDate = WS.Cells(3, kk)
       
          ' 色指定をクリア（白を指定）
-         WS.Cells(jj, kk).Interior.Color = RGB(255, 255, 255) ' 背景色
+         WS.Cells(jj, kk).Interior.color = RGB(255, 255, 255) ' 背景色
          
          ' 祝日
-         If (True = getHoliday(holidayDate, youbiInt, personalDate, keikakuDate)) Then
-                WS.Cells(jj, kk).Interior.Color = RGB(255, 200, 200) ' 背景色をピンクにする
+         If (True = isHoliday(holidayDate, youbiInt, personalDate, keikakuDate)) Then
+                WS.Cells(jj, kk).Interior.color = RGB(255, 200, 200) ' 背景色をピンクにする
          End If
          
        Next kk
@@ -317,7 +332,12 @@ LOOPEND:
     Next jj
 End Sub
 
-Function getHoliday(holidayDate() As Date, _
+' keikakuDate が祝日かどうかを判定する
+' @param holidayDate 祝日
+' @param youbiInt    個人の休む曜日
+' @param personalDate 個人の休日
+' @return True=祝日　False=平日
+Function isHoliday(holidayDate() As Date, _
                      youbiInt() As Integer, _
                      personalDate() As Date, keikakuDate As Date) As Boolean
     Dim WS As Worksheet
@@ -325,76 +345,81 @@ Function getHoliday(holidayDate() As Date, _
     Dim WSConfig As Worksheet
     Set WSConfig = Worksheets("工程表Config")
     Dim ii As Integer
+    Dim ret As Boolean
+    
 
          ' 祝日
+         If (CalcArrayLength(holidayDate) >= 1) Then
          For ii = LBound(holidayDate) To UBound(holidayDate)
            ' 祝日と一致するか？
             If ((keikakuDate) = holidayDate(ii)) Then
                ' 一致していたら
-               getHoliday = True
+               ret = True
                GoTo LOOPEND
             End If
          Next ii
+         End If
    
          ' 個人の休日
+         If (CalcArrayLength(personalDate) >= 1) Then
          For ii = LBound(personalDate) To UBound(personalDate)
            ' 個人の休日と一致するか？
             If ((keikakuDate) = personalDate(ii)) Then
                ' 一致していたら
-               getHoliday = True
+               ret = True
                GoTo LOOPEND
             End If
          Next ii
+         End If
    
          ' 個人の曜日
+         If (CalcArrayLength(youbiInt) >= 1) Then
          For ii = LBound(youbiInt) To UBound(youbiInt)
            ' 個人の曜日と一致するか？
             If (Weekday(keikakuDate) = youbiInt(ii)) Then
                ' 一致していたら
-               getHoliday = True
+               ret = True
                GoTo LOOPEND
             End If
          Next ii
+         End If
+         ret = False
 LOOPEND:
+    isHoliday = ret
 End Function
 
-' startDate    開始日
-' taskDbl      作業日数
-' holidayDate  祝日
-' workDate     稼働祝日
-' youbiInt     非稼働曜日
-' personalDate 非稼働日
-Function calcWorkday(startDate As Date, taskDbl As Double, _
+' @param startDate    開始日
+' @param taskDbl      作業日数
+' @param holidayDate  祝日
+' @param youbiInt     非稼働曜日
+' @param personalDate 非稼働日
+Function calcWorkday(startDate As Date, _
+                     taskDbl As Double, _
                      holidayDate() As Date, _
                      youbiInt() As Integer, _
-                     personalDate() As Date) As Integer
+                     personalDate() As Date) As Double
 
-   Dim startDayInt As Integer
-   Dim endDayInt As Integer
-   '切り捨て
-   startDayInt = taskDbl
-   ' 四捨五入
-   endDayInt = WorksheetFunction.RoundUp(taskDbl, 0)
+   ' Dim startDayInt As Integer
+   ' Dim endDayInt As Integer
+   ' 切り捨て
+   ' startDayInt = taskDbl
+   ' 切り上げ
+   ' endDayInt = WorksheetFunction.RoundUp(taskDbl, 0)
    Dim tmpTask  As Integer
    
-   
    tmpTask = 0
-   jj = 0
-   
-   Do While tmpTask < endDayInt
-      Dim ii As Integer
-      
+   Do
          ' 祝日
-         If (True = getHoliday(holidayDate, youbiInt, personalDate, startDate + tmpTask)) Then
-            ' 一致していたら稼働最終日を延長する
-            endDayInt = endDayInt + 1
-            GoTo LOOPEND
+         If (True = isHoliday(holidayDate, youbiInt, personalDate, startDate + tmpTask)) Then
+            ' 休日ならば稼働最終日を延長する
+            taskDbl = taskDbl + 1
+            
          End If
-         
-LOOPEND:
-      tmpTask = tmpTask + 1
-   Loop
-   
-   calcWorkday = endDayInt
+         ' 現在日を1日経過させる
+         tmpTask = tmpTask + 1
+   Loop While tmpTask < taskDbl
+LFEND:
+   calcWorkday = taskDbl
 
 End Function
+
